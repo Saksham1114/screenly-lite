@@ -3,10 +3,8 @@ import os
 import pandas as pd
 import PyPDF2
 import docx2txt
-from sklearn.metrics.pairwise import cosine_similarity
 import io
 from werkzeug.utils import secure_filename
-from sentence_transformers import SentenceTransformer
 
 # PDF
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
@@ -21,9 +19,6 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
-# ---------------- MODEL ---------------- #
-model = SentenceTransformer('all-MiniLM-L6-v2')
-
 # ---------------- SKILLS ---------------- #
 SKILLS_DB = [
     "python", "java", "c++", "machine learning", "deep learning",
@@ -33,6 +28,16 @@ SKILLS_DB = [
 ]
 
 leaderboard_data = pd.DataFrame()
+
+# ---------------- SIMPLE SIMILARITY ---------------- #
+def simple_similarity(text1, text2):
+    words1 = set(text1.lower().split())
+    words2 = set(text2.lower().split())
+
+    if len(words1 | words2) == 0:
+        return 0
+
+    return len(words1 & words2) / len(words1 | words2)
 
 # ---------------- SKILL EXTRACTION ---------------- #
 def extract_skills(text):
@@ -112,10 +117,11 @@ def home():
         if not resume_texts:
             return render_template("index.html", error="Upload valid files")
 
-        # ---------------- AI SIMILARITY ---------------- #
-        job_embedding = model.encode([job_description])
-        resume_embeddings = model.encode(resume_texts)
-        similarity_scores = cosine_similarity(job_embedding, resume_embeddings)[0]
+        # ---------------- LIGHT SIMILARITY ---------------- #
+        similarity_scores = [
+            simple_similarity(job_description, text)
+            for text in resume_texts
+        ]
 
         jd_skills = extract_skills(job_description)
 
@@ -151,21 +157,17 @@ def home():
 
         leaderboard_data["Rank"] = leaderboard_data.index + 1
 
-        # ---------------- 📊 CHART DATA ---------------- #
+        # ---------------- CHART ---------------- #
         chart_labels = leaderboard_data["Candidate"].tolist()
         chart_scores = leaderboard_data["Final_Score"].tolist()
 
-        # ---------------- 🤖 AI SUGGESTIONS ---------------- #
+        # ---------------- AI SUGGESTIONS ---------------- #
         suggestions = []
         for _, row in leaderboard_data.iterrows():
             if row["Missing Skills"]:
                 suggestions.append(f"Improve: {row['Missing Skills']}")
             else:
                 suggestions.append("Strong profile match")
-
-        # ✅ SAFETY FIX (prevents Jinja crash)
-        if not suggestions:
-            suggestions = ["No suggestions available"] * len(leaderboard_data)
 
         return render_template(
             "leaderboard.html",
@@ -217,6 +219,7 @@ def download():
         mimetype="application/pdf"
     )
 
-# ---------------- RUN ---------------- #
+# ---------------- RUN (RENDER READY) ---------------- #
 if __name__ == "__main__":
-    app.run(debug=True, use_reloader=False)
+    port = int(os.environ.get("PORT", 10000))  # Render default
+    app.run(host="0.0.0.0", port=port)

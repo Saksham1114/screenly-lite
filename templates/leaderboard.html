@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Screenly Dashboard</title>
+
+    <!-- 📊 Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+    body {
+        margin: 0;
+        font-family: 'Segoe UI', sans-serif;
+        background: #0f172a;
+        color: #cbd5e1;
+    }
+
+    h1 {
+        text-align: center;
+        padding: 20px;
+        background: linear-gradient(90deg, #6366f1, #22c55e);
+        margin: 0;
+        color: white;
+    }
+
+    .container {
+        width: 90%;
+        margin: auto;
+        margin-top: 30px;
+    }
+
+    .stats {
+        display: flex;
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+
+    .stat-card {
+        flex: 1;
+        padding: 20px;
+        border-radius: 15px;
+        background: rgba(255,255,255,0.05);
+        backdrop-filter: blur(10px);
+        text-align: center;
+    }
+
+    /* 🏆 TOP CARDS */
+    .top-cards {
+        display: flex;
+        gap: 20px;
+        margin-bottom: 25px;
+    }
+
+    .top-card {
+        flex: 1;
+        padding: 20px;
+        border-radius: 15px;
+        text-align: center;
+        color: white;
+        animation: float 3s ease-in-out infinite;
+    }
+
+    .top-card:hover {
+        transform: scale(1.05);
+    }
+
+    .rank-1 { background: linear-gradient(135deg, #22c55e, #4ade80); }
+    .rank-2 { background: linear-gradient(135deg, #6366f1, #818cf8); }
+    .rank-3 { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
+
+    .badge { font-size: 28px; }
+
+    .mini-bar {
+        background: rgba(255,255,255,0.3);
+        height: 6px;
+        border-radius: 10px;
+        margin: 10px 0;
+    }
+
+    .mini-bar div {
+        height: 6px;
+        background: white;
+        border-radius: 10px;
+    }
+
+    @keyframes float {
+        0% { transform: translateY(0px); }
+        50% { transform: translateY(-8px); }
+        100% { transform: translateY(0px); }
+    }
+
+    .chart-box {
+        background: #1e293b;
+        padding: 20px;
+        border-radius: 15px;
+        margin-bottom: 20px;
+    }
+
+    .card {
+        background: #1e293b;
+        border-radius: 15px;
+        padding: 20px;
+        box-shadow: 0px 10px 25px rgba(0,0,0,0.5);
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    th {
+        background: #334155;
+        padding: 12px;
+        color: white;
+    }
+
+    td {
+        padding: 12px;
+        border-bottom: 1px solid #444;
+        font-size: 14px;
+    }
+
+    tr:hover { background: #273449; }
+
+    .top {
+        border-left: 5px solid #22c55e;
+        background: #1f2937;
+    }
+
+    .matched { color: #22c55e; font-weight: bold; }
+    .missing { color: #ef4444; font-weight: bold; }
+
+    .progress-bar {
+        background: #334155;
+        border-radius: 10px;
+        height: 8px;
+        margin-top: 5px;
+    }
+
+    .progress {
+        height: 8px;
+        background: #6366f1;
+    }
+
+    .status-short { color:#22c55e; font-weight:bold; }
+    .status-review { color:#facc15; font-weight:bold; }
+    .status-reject { color:#ef4444; font-weight:bold; }
+
+    .suggestion {
+        color: #38bdf8;
+        font-size: 12px;
+    }
+
+    .download-btn {
+        display: inline-block;
+        margin-top: 20px;
+        padding: 12px 25px;
+        background: #6366f1;
+        color: white;
+        text-decoration: none;
+        border-radius: 10px;
+    }
+</style>
+</head>
+
+<body>
+
+<h1> Screenly Resume Dashboard</h1>
+
+<div class="container">
+
+    <!-- 🔥 STATS -->
+    <div class="stats">
+        <div class="stat-card">
+            <h3>Total Candidates</h3>
+            <p>{{ leaderboard|length }}</p>
+        </div>
+
+        <div class="stat-card">
+            <h3>Top Score</h3>
+            <p>{{ "%.2f"|format(leaderboard[0]['Final_Score']) if leaderboard else 0 }}</p>
+        </div>
+
+        <div class="stat-card">
+            <h3>Shortlisted</h3>
+            <p>{{ leaderboard | selectattr('Final_Score', '>', 0.75) | list | length }}</p>
+        </div>
+    </div>
+
+    <!-- 🏆 TOP 3 CARDS -->
+    <div class="top-cards">
+        {% for row in leaderboard[:3] %}
+        <div class="top-card rank-{{ loop.index }}">
+            <div class="badge">
+                {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% else %}🥉{% endif %}
+            </div>
+
+            <h3>{{ row['Candidate'] }}</h3>
+            <h2>{{ "%.2f"|format(row['Final_Score']) }}</h2>
+
+            <div class="mini-bar">
+                <div style="width: {{ row['Final_Score'] * 100 }}%"></div>
+            </div>
+
+            <p>Rank #{{ row['Rank'] }}</p>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- 📊 CHART -->
+    <div class="chart-box">
+        <canvas id="chart"></canvas>
+    </div>
+
+    <div class="card">
+
+        <table>
+            <tr>
+                <th>Rank</th>
+                <th>Candidate</th>
+                <th>Final Score</th>
+                <th>Status</th>
+                <th>Skills</th>
+                <th>AI Suggestions</th>
+            </tr>
+
+            {% for row in leaderboard %}
+
+            {% set status = "Rejected" %}
+            {% if row['Final_Score'] >= 0.75 %}
+                {% set status = "Shortlisted" %}
+            {% elif row['Final_Score'] >= 0.5 %}
+                {% set status = "Review" %}
+            {% endif %}
+
+            <tr class="{{ 'top' if row['Rank'] == 1 else '' }}">
+
+                <td>#{{ row['Rank'] }}</td>
+                <td>{{ row['Candidate'] }}</td>
+
+                <td>
+                    {{ "%.2f"|format(row['Final_Score']) }}
+                    <div class="progress-bar">
+                        <div class="progress" style="width: {{ row['Final_Score'] * 100 }}%"></div>
+                    </div>
+                </td>
+
+                <td>
+                    {% if status == 'Shortlisted' %}
+                        <span class="status-short">✔ Shortlisted</span>
+                    {% elif status == 'Review' %}
+                        <span class="status-review">⚠ Review</span>
+                    {% else %}
+                        <span class="status-reject">✖ Rejected</span>
+                    {% endif %}
+                </td>
+
+                <td>
+                    <div class="matched">✅ {{ row['Matched Skills'] or "None" }}</div>
+                    <div class="missing">❌ {{ row['Missing Skills'] or "None" }}</div>
+                </td>
+
+                <!-- ✅ FIXED AI SUGGESTIONS -->
+                <td class="suggestion">
+                    💡 {{ suggestions[loop.index0] }}
+                </td>
+
+            </tr>
+            {% endfor %}
+        </table>
+
+        <a href="/download" class="download-btn">⬇ Download PDF Report</a>
+
+    </div>
+</div>
+
+<script>
+const labels = {{ (chart_labels or []) | tojson | safe }};
+const scores = {{ (chart_scores or []) | tojson | safe }};
+
+if (labels.length > 0) {
+    const ctx = document.getElementById('chart');
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Final Scores',
+                data: scores
+            }]
+        }
+    });
+}
+</script>
+
+</body>
+</html>
